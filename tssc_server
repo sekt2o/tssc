@@ -1,0 +1,79 @@
+#!/usr/bin/env python
+# -*- coding: utf-8 -*-
+
+##################################
+#
+# Teacher'S Screen Cast ver.1.0
+# server program
+#
+# Created by T.Sekimoto@ryukoku IMC
+# (sekimoto@ad.ryukoku.ac.jp)
+#
+# 1st release 2014/03/25
+#
+##################################
+
+import socket
+import signal
+import time
+import os
+from subprocess import *
+
+#network setting
+ANY = '0.0.0.0'
+SENDERPORT = 1502
+MCAST_ADDR = '224.168.2.9'
+MCAST_PORT = 1600
+
+sock = socket.socket(socket.AF_INET, socket.SOCK_DGRAM, socket.IPPROTO_UDP)
+sock.bind((ANY,SENDERPORT))
+
+#Tell the kernel that we want to multicast and that the data is sent
+#to everyone (255 is the level of multicasting)
+sock.setsockopt(socket.IPPROTO_IP, socket.IP_MULTICAST_TTL, 255)
+
+time.sleep(1)	#waiting 1sec
+
+#vlc streaming command start
+print "starting vlc multicasting..."
+#pid=Popen(['cvlc', 'screen://', ':screen-fps=20', ':screen-caching=3000', ':udp-caching=3000', ':live-caching=300' '--quiet', '--sout','#transcode{vcodec=mp2v,vb=1024}:std{access=udp,mux=ts,dst=239.255.0.1,port=5004,udp-caching=0,rtp-caching=0,mux-caching=0}']).pid
+pid=Popen(['cvlc', 'screen://', ':screen-fps=20', ':screen-caching=3000', ':udp-caching=3000', ':live-caching=300' '--quiet', '--sout','#transcode{vcodec=mp4v,vb=512}:std{access=udp,mux=ts,dst=239.255.0.1,port=5004,udp-caching=0,rtp-caching=0,mux-caching=0}']).pid
+
+print "\n\nstarting Teacher'S Screen Cast...\n\n"
+
+while True:
+	user_input = raw_input("TSSC command: ").lower()
+
+	#クライアントのポートにcommandを送信
+	sock.sendto(user_input, (MCAST_ADDR,MCAST_PORT) )
+
+	#VLCを一斉起動
+	if user_input == "start":
+		print "start teacher screen casting.\n"
+
+	#VLCをフルスクリーンで一斉起動
+	elif user_input == "start -f":
+		print "start teacher full screen casting.\n"
+
+	#VLCを一斉停止
+	elif user_input == "stop":
+		print "stop casting.\n"
+
+	#help
+	elif user_input == "help":
+		print "sorry. under construction.\n"
+
+	#自プログラム終了
+	elif user_input == "exit":
+		try:
+			pid
+		except NameError:
+			print "error: system exit error.\n"
+		else:
+			sock.sendto("stop", (MCAST_ADDR,MCAST_PORT) )
+			os.kill(pid, signal.SIGUSR1)
+			print "exit this system. thanks! ;)"
+			sock.close()
+			break
+	else :
+		print "command not found.\n"
