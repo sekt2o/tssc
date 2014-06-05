@@ -1,0 +1,174 @@
+#!/usr/bin/env python
+# -*- coding: utf-8 -*-
+
+##################################
+#
+# Teacher'S Screen Cast ver.1.0
+# agent program
+#
+# Created by T.Sekimoto@ryukoku IMC
+# (sekimoto@ad.ryukoku.ac.jp)
+#
+# 1st release 2014/03/25
+#
+##################################
+
+# scriptのdaemon化
+# "python-daemon"をいれてdaemon化しています。
+#  apt-get -y install python-daemon
+
+from __future__ import with_statement
+from daemon import DaemonContext
+from daemon.pidlockfile import PIDLockFile
+
+import socket
+import signal
+import time
+import os
+import subprocess
+import datetime
+import logging
+
+# 設定
+ANY = '0.0.0.0'
+MCAST_ADDR = '224.168.2.9'
+MCAST_PORT = 1600
+SRV_ADDR = '192.168.89.189'
+
+#log_fmt = '%(asctime)s- %(name)s - %(levelname)s - %(message)s'
+FORMAT = '%(asctime)-15s %(clientip)s %(user)-8s %(message)s'
+logging.basicConfig(filename='/tmp/tssc_agentd.log',level=logging.DEBUG,format=FORMAT)
+#logging.basicConfig(format=log_fmt)
+#logging.info('tssc_agentd started')
+
+d = {}
+d['user'] = os.getlogin()
+d['clientip'] = os.getenv('REMOTE_ADDR')
+
+logger = logging.getLogger('tssc_agentd')
+logger.info('normal: %s', 'started.', extra=d)
+
+#日付取得
+def DATETIME():
+	return datetime.datetime.now()
+
+#VLC起動
+def startVlc(opt):
+
+	if opt == "full":
+		proc = subprocess.Popen(['vlc', 'udp://@239.255.0.1', '--network-caching=0', '--udp-caching=0', '--rtp-caching=0', '--fullscreen'],
+			stdin=subprocess.PIPE,
+			stdout=subprocess.PIPE,
+			stderr=subprocess.PIPE,
+			shell=False)
+	else:
+		proc = subprocess.Popen(['vlc', 'udp://@239.255.0.1', '--network-caching=0', '--udp-caching=0', '--rtp-caching=0', '--video-on-top', '--video-filter=magnify', '--width=400', '--height=300', '--qt-notification=0', '--no-qt-privacy-ask', '--no-ignore-config', '--qt-minimal-view', '--no-qt-video-autoresize' ],
+			stdin=subprocess.PIPE,
+			stdout=subprocess.PIPE,
+			stderr=subprocess.PIPE,
+			shell=False)
+
+	return proc
+
+#VLC終了
+def stopVlc(pid):
+
+	if data == "stop":
+
+		try:
+			pid
+		except NameError:
+			print DATETIME(),"ERROR: no pid"
+		else:
+			if pid !="":
+				os.kill(pid, signal.SIGUSR1)
+				pid = ""
+
+# Pidファイルの作成
+dc = DaemonContext(
+    pidfile=PIDLockFile('/tmp/tssc_agentd.pid'),
+    stderr=open('/tmp/tssc_agentd.error', 'w+')
+)
+
+if __name__ == '__main__':
+
+	with dc:
+
+		#UDPパケット生成
+		sock = socket.socket(socket.AF_INET, socket.SOCK_DGRAM, socket.IPPROTO_UDP)
+		#allow multiple sockets to use the same PORT number
+		sock.setsockopt(socket.SOL_SOCKET,socket.SO_REUSEADDR,1)
+
+		#マルチキャストデータを受けるポートにバインド
+		sock.bind((ANY,MCAST_PORT))
+
+		#マルチチャストソケットをセット
+		sock.setsockopt(socket.IPPROTO_IP, socket.IP_MULTICAST_TTL, 255)
+
+		#マルチキャストグループに自身を加えるようカーネルに命令
+		#3番目のパラメータはマルチキャスト・グループのためのアドレス
+		status = sock.setsockopt(socket.IPPROTO_IP,
+			socket.IP_ADD_MEMBERSHIP,
+			socket.inet_aton(MCAST_ADDR) + socket.inet_aton(ANY));
+		sock.setblocking(0)
+
+		pid = ""	#プロセスIDの初期化
+		proc = ""	#プロセスの初期化
+		flg = ""	#フラグの初期
+
+		while True:
+
+			if pid:
+				#print DATETIME(),"debug....pid=",pid
+
+				#プロセスが終了するまで処理を実施
+				while proc.poll() is None:
+					try:
+						#print DATETIME(),"debug....runnning VLC."
+						data, addr = sock.recvfrom(1024)	#ソケット監視
+
+					except socket.error, e:
+						time.sleep(1) #CPU負荷を下げるため1秒待つ
+						pass
+
+					else:
+						#配信停止の命令がでた場合はvlcをkillする
+						stopVlc(pid)
+						flg = "stop"
+
+				pid = "" #pid初期化
+				#print DATETIME(),"debug....stop VLC."
+
+				if flg != "stop":
+					proc = startVlc("standard")
+					pid = proc.pid
+
+			try:
+				data, addr = sock.recvfrom(1024)
+
+			except socket.error, e:
+				time.sleep(1) #CPU負荷を下げるため1秒待つ
+				pass
+
+			else:
+				#マルチキャスト元のIPが該当IPの場合は処理を実施
+				if SRV_ADDR in addr:
+
+					print DATETIME(),'FROM:', addr, 'command:', data
+					logging.warning('tssc_agentd server ok')
+
+					#通常表示
+					if data == "start" and pid == "":
+						flg = "start"
+						proc = startVlc("standard")
+						pid = proc.pid
+
+					#全画面表示
+					elif data == "start -f" and pid == "":
+						flg = "start"
+						proc = startVlc("full")
+						pid = proc.pid
+
+				#マルチキャスト元のIPが該当IP以外の場合はエラーメッセージを表示
+				else:
+					print DATETIME(),'FROM:',
