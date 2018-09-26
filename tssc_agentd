@@ -38,13 +38,13 @@ width = resuls.split("x")[0].strip()
 halfWidth = str(int(width) / 2)
 heigth = resuls.split("x")[1].strip()
 halfHeigth = str(int(heigth) / 2)
-print halfWidth + "x" + halfHeigth
+# print halfWidth + "x" + halfHeigth
 
 # 設定
 ANY = '0.0.0.0'
 MCAST_ADDR = '224.168.2.9'
 MCAST_PORT = 1600
-SRV_ADDR = '100'	#配信元IPアドレスのホスト部
+SRV_ADDR = '181'	#配信元IPアドレスのホスト部
 
 #日付取得
 def DATETIME():
@@ -53,7 +53,7 @@ def DATETIME():
 #VLC起動
 def startVlc(opt):
 	if opt == "full":
-		proc = subprocess.Popen(['vlc', 'udp://@239.255.0.1', '--network-caching=0', '--udp-caching=0', '--rtp-caching=0', '--fullscreen'],
+		proc = subprocess.Popen(['vlc', 'udp://@239.255.0.1', '--network-caching=0', '--udp-caching=0', '--rtp-caching=0', '--fullscreen', '--no-qt-privacy-ask', '--no-ignore-config', '--qt-minimal-view'],
 			stdin=subprocess.PIPE,
 			stdout=subprocess.PIPE,
 			stderr=subprocess.PIPE,

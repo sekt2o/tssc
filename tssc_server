@@ -26,7 +26,12 @@ warnings.filterwarnings('ignore',category=DeprecationWarning)
 #スクリーンサイズを取得
 resuls = subprocess.Popen(['xrandr'],stdout=subprocess.PIPE).communicate()[0].split("current")[1].split(",")[0]
 width = resuls.split("x")[0].strip()
-halfWidth = str(int(width) / 2)
+
+if width == "3840":
+	halfWidth = str(int(width) / 4)
+else :
+	halfWidth = str(int(width) / 2)
+
 heigth = resuls.split("x")[1].strip()
 # print width + "x" + heigth
 
