@@ -9,9 +9,12 @@
 # Created by T.Sekimoto@ryukoku IMC
 # (sekimoto@ad.ryukoku.ac.jp)
 #
-# 1st release 2014/03/25
+# 1st release 2015/03/25
 #
 ##################################
+
+#いまの問題点
+#　・ログ出力（2014/06/05）
 
 # scriptのdaemon化
 # "python-daemon"をいれてdaemon化しています。
@@ -29,24 +32,19 @@ import subprocess
 import datetime
 import logging
 
+#スクリーンサイズを取得
+resuls = subprocess.Popen(['xrandr'],stdout=subprocess.PIPE).communicate()[0].split("current")[1].split(",")[0]
+width = resuls.split("x")[0].strip()
+halfWidth = str(int(width) / 2)
+heigth = resuls.split("x")[1].strip()
+halfHeigth = str(int(heigth) / 2)
+print halfWidth + "x" + halfHeigth
+
 # 設定
 ANY = '0.0.0.0'
 MCAST_ADDR = '224.168.2.9'
 MCAST_PORT = 1600
-SRV_ADDR = '192.168.89.189'
-
-#log_fmt = '%(asctime)s- %(name)s - %(levelname)s - %(message)s'
-FORMAT = '%(asctime)-15s %(clientip)s %(user)-8s %(message)s'
-logging.basicConfig(filename='/tmp/tssc_agentd.log',level=logging.DEBUG,format=FORMAT)
-#logging.basicConfig(format=log_fmt)
-#logging.info('tssc_agentd started')
-
-d = {}
-d['user'] = os.getlogin()
-d['clientip'] = os.getenv('REMOTE_ADDR')
-
-logger = logging.getLogger('tssc_agentd')
-logger.info('normal: %s', 'started.', extra=d)
+SRV_ADDR = '100'	#配信元IPアドレスのホスト部
 
 #日付取得
 def DATETIME():
@@ -54,20 +52,29 @@ def DATETIME():
 
 #VLC起動
 def startVlc(opt):
-
 	if opt == "full":
 		proc = subprocess.Popen(['vlc', 'udp://@239.255.0.1', '--network-caching=0', '--udp-caching=0', '--rtp-caching=0', '--fullscreen'],
 			stdin=subprocess.PIPE,
 			stdout=subprocess.PIPE,
 			stderr=subprocess.PIPE,
 			shell=False)
-	else:
-		proc = subprocess.Popen(['vlc', 'udp://@239.255.0.1', '--network-caching=0', '--udp-caching=0', '--rtp-caching=0', '--video-on-top', '--video-filter=magnify', '--width=400', '--height=300', '--qt-notification=0', '--no-qt-privacy-ask', '--no-ignore-config', '--qt-minimal-view', '--no-qt-video-autoresize' ],
+		logger.info('normal: %s', 'Vlc full screen multicast has been started.', extra=d)
+		
+	elif opt == "half":
+		proc = subprocess.Popen(['vlc', 'udp://@239.255.0.1', '--network-caching=0', '--udp-caching=0', '--rtp-caching=0', '--width='+halfWidth+'', '--height='+heigth+'', '--no-qt-privacy-ask', '--no-ignore-config', '--qt-minimal-view'],
 			stdin=subprocess.PIPE,
 			stdout=subprocess.PIPE,
 			stderr=subprocess.PIPE,
 			shell=False)
-
+		logger.info('normal: %s', 'Vlc full screen multicast has been started.', extra=d)
+		
+	else:
+		proc = subprocess.Popen(['vlc', 'udp://@239.255.0.1', '--network-caching=0', '--udp-caching=0', '--rtp-caching=0', '--video-on-top', '--video-filter=magnify', '--width='+halfWidth+'', '--height='+halfHeigth+'', '--qt-notification=0', '--no-qt-privacy-ask', '--no-ignore-config', '--qt-minimal-view', '--no-qt-video-autoresize'],
+			stdin=subprocess.PIPE,
+			stdout=subprocess.PIPE,
+			stderr=subprocess.PIPE,
+			shell=False)
+		logger.info('normal: %s', 'Vlc normal screen multicast has been started.', extra=d)
 	return proc
 
 #VLC終了
@@ -78,21 +85,37 @@ def stopVlc(pid):
 		try:
 			pid
 		except NameError:
-			print DATETIME(),"ERROR: no pid"
+			#print DATETIME(),"ERROR: no pid"
+			logger.info('Error: %s', 'no pid.', extra=d)
 		else:
 			if pid !="":
 				os.kill(pid, signal.SIGUSR1)
 				pid = ""
+				logger.info('normal: %s', 'Vlc multicast has been stopped.', extra=d)
+
+#ログ出力の設定
+handler = logging.FileHandler('/tmp/tssc_agentd.log')
+logging.basicConfig(level=logging.DEBUG)
+
+d = {}
+d['user'] = os.getlogin()
+
+formatter = logging.Formatter('%(asctime)s - %(user)s - %(message)s')
+handler.setFormatter(formatter)
+logger = logging.getLogger('tssc_agentd')
+logger.addHandler(handler)
 
 # Pidファイルの作成
 dc = DaemonContext(
     pidfile=PIDLockFile('/tmp/tssc_agentd.pid'),
-    stderr=open('/tmp/tssc_agentd.error', 'w+')
+    stderr=open('/tmp/tssc_agentd.error', 'w+'),
+		files_preserve = [handler.stream]
 )
 
 if __name__ == '__main__':
 
 	with dc:
+		logger.info('normal: %s', 'Start the daemon.', extra=d)
 
 		#UDPパケット生成
 		sock = socket.socket(socket.AF_INET, socket.SOCK_DGRAM, socket.IPPROTO_UDP)
@@ -117,16 +140,16 @@ if __name__ == '__main__':
 		flg = ""	#フラグの初期
 
 		while True:
-
+			
 			if pid:
-				#print DATETIME(),"debug....pid=",pid
-
+				
 				#プロセスが終了するまで処理を実施
 				while proc.poll() is None:
 					try:
 						#print DATETIME(),"debug....runnning VLC."
+						#logger.info('normal: %s', 'runnning VLC.', extra=d)
 						data, addr = sock.recvfrom(1024)	#ソケット監視
-
+						
 					except socket.error, e:
 						time.sleep(1) #CPU負荷を下げるため1秒待つ
 						pass
@@ -138,6 +161,7 @@ if __name__ == '__main__':
 
 				pid = "" #pid初期化
 				#print DATETIME(),"debug....stop VLC."
+				#logger.info('normal: %s', 'stop VLC.', extra=d)
 
 				if flg != "stop":
 					proc = startVlc("standard")
@@ -151,11 +175,12 @@ if __name__ == '__main__':
 				pass
 
 			else:
-				#マルチキャスト元のIPが該当IPの場合は処理を実施
-				if SRV_ADDR in addr:
 
-					print DATETIME(),'FROM:', addr, 'command:', data
-					logging.warning('tssc_agentd server ok')
+				#マルチキャスト元のIPが該当IPの場合は処理を実施
+				#配信元IPアドレスのホスト部で識別
+				if addr[0].endswith(SRV_ADDR):
+					
+					logger.info('normal: Connection from %s was allowed.', addr)
 
 					#通常表示
 					if data == "start" and pid == "":
@@ -168,7 +193,13 @@ if __name__ == '__main__':
 						flg = "start"
 						proc = startVlc("full")
 						pid = proc.pid
+						
+					#半画面表示
+					elif data == "start -h" and pid == "":
+						flg = "start"
+						proc = startVlc("half")
+						pid = proc.pid
 
 				#マルチキャスト元のIPが該当IP以外の場合はエラーメッセージを表示
 				else:
-					print DATETIME(),'FROM:',
+					logger.info('error: Connection from %s was not allowed.', addr)

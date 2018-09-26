@@ -18,6 +18,17 @@ import signal
 import time
 import os
 from subprocess import *
+import logging
+import subprocess
+import warnings
+warnings.filterwarnings('ignore',category=DeprecationWarning)
+
+#スクリーンサイズを取得
+resuls = subprocess.Popen(['xrandr'],stdout=subprocess.PIPE).communicate()[0].split("current")[1].split(",")[0]
+width = resuls.split("x")[0].strip()
+halfWidth = str(int(width) / 2)
+heigth = resuls.split("x")[1].strip()
+# print width + "x" + heigth
 
 #network setting
 ANY = '0.0.0.0'
@@ -28,16 +39,24 @@ MCAST_PORT = 1600
 sock = socket.socket(socket.AF_INET, socket.SOCK_DGRAM, socket.IPPROTO_UDP)
 sock.bind((ANY,SENDERPORT))
 
+#ログ出力の設定
+handler = logging.FileHandler('/tmp/tssc_server.log')
+logging.basicConfig(level=logging.DEBUG)
+d = {}
+d['user'] = os.getlogin()
+formatter = logging.Formatter('%(asctime)s - %(user)s - %(message)s')
+handler.setFormatter(formatter)
+logger = logging.getLogger('tssc_server')
+logger.addHandler(handler)
+logger.info('normal: %s', 'Start the server.', extra=d)
+
+devnull = open('/dev/null', 'w')
+
 #Tell the kernel that we want to multicast and that the data is sent
 #to everyone (255 is the level of multicasting)
 sock.setsockopt(socket.IPPROTO_IP, socket.IP_MULTICAST_TTL, 255)
 
 time.sleep(1)	#waiting 1sec
-
-#vlc streaming command start
-print "starting vlc multicasting..."
-#pid=Popen(['cvlc', 'screen://', ':screen-fps=20', ':screen-caching=3000', ':udp-caching=3000', ':live-caching=300' '--quiet', '--sout','#transcode{vcodec=mp2v,vb=1024}:std{access=udp,mux=ts,dst=239.255.0.1,port=5004,udp-caching=0,rtp-caching=0,mux-caching=0}']).pid
-pid=Popen(['cvlc', 'screen://', ':screen-fps=20', ':screen-caching=3000', ':udp-caching=3000', ':live-caching=300' '--quiet', '--sout','#transcode{vcodec=mp4v,vb=512}:std{access=udp,mux=ts,dst=239.255.0.1,port=5004,udp-caching=0,rtp-caching=0,mux-caching=0}']).pid
 
 print "\n\nstarting Teacher'S Screen Cast...\n\n"
 
@@ -49,31 +68,98 @@ while True:
 
 	#VLCを一斉起動
 	if user_input == "start":
-		print "start teacher screen casting.\n"
-
+		print "Start teacher screen casting.\n"
+		logger.info('normal: %s', 'Start teacher screen casting.', extra=d)
+		
+		#vlc streaming command start
+		print "starting vlc multicasting..."
+		#pid=Popen(['cvlc', 'screen://', ':screen-fps=20', ':screen-caching=3000', ':udp-caching=3000', ':live-caching=300' '--quiet', '--sout','#transcode{vcodec=mp2v,vb=1024}:std{access=udp,mux=ts,dst=239.255.0.1,port=5004,udp-caching=0,rtp-caching=0,mux-caching=0}']).pid
+		pid = Popen([
+			'cvlc',
+			'screen://',
+			':screen-fps=20',
+			':screen-caching=3000',
+			':udp-caching=3000',
+			':live-caching=300',
+			'--quiet',
+			'--sout',
+			'#transcode{vcodec=mp4v,vb=512}:std{access=udp,mux=ts,dst=239.255.0.1,port=5004,udp-caching=0,rtp-caching=0,mux-caching=0}'
+			], stdout=devnull, stderr=devnull).pid
+			
 	#VLCをフルスクリーンで一斉起動
 	elif user_input == "start -f":
-		print "start teacher full screen casting.\n"
+		print "Start teacher full screen casting.\n"
+		logger.info('normal: %s', 'Start teacher full screen casting.', extra=d)
+
+		#vlc streaming command start
+		print "starting vlc multicasting..."
+		#pid=Popen(['cvlc', 'screen://', ':screen-fps=20', ':screen-caching=3000', ':udp-caching=3000', ':live-caching=300' '--quiet', '--sout','#transcode{vcodec=mp2v,vb=1024}:std{access=udp,mux=ts,dst=239.255.0.1,port=5004,udp-caching=0,rtp-caching=0,mux-caching=0}']).pid
+		pid = Popen([
+			'cvlc',
+			'screen://',
+			':screen-fps=20',
+			':screen-caching=3000',
+			':udp-caching=3000',
+			':live-caching=300',
+			'--quiet',
+			'--sout',
+			'#transcode{vcodec=mp4v,vb=512}:std{access=udp,mux=ts,dst=239.255.0.1,port=5004,udp-caching=0,rtp-caching=0,mux-caching=0}'
+			], stdout=devnull, stderr=devnull).pid
+	
+	#VLCをハーフスクリーンで一斉起動
+	elif user_input == "start -h":
+		print "Start teacher full screen casting.\n"
+		logger.info('normal: %s', 'Start teacher full screen casting.', extra=d)
+
+		#vlc streaming command start
+		print "starting vlc multicasting..."
+		#pid=Popen(['cvlc', 'screen://', ':screen-fps=20', ':screen-caching=3000', ':udp-caching=3000', ':live-caching=300' '--quiet', '--sout','#transcode{vcodec=mp2v,vb=1024}:std{access=udp,mux=ts,dst=239.255.0.1,port=5004,udp-caching=0,rtp-caching=0,mux-caching=0}']).pid
+		pid = Popen([
+			'cvlc',
+			'screen://',
+			':screen-fps=20',
+			':screen-caching=3000',
+			':screen-width='+halfWidth+'',
+			':udp-caching=3000',
+			':live-caching=300',
+			'--quiet',
+			'--sout',
+			'#transcode{vcodec=mp4v,vb=512}:std{access=udp,mux=ts,dst=239.255.0.1,port=5004,udp-caching=0,rtp-caching=0,mux-caching=0}'
+			], stdout=devnull, stderr=devnull).pid
 
 	#VLCを一斉停止
 	elif user_input == "stop":
-		print "stop casting.\n"
+		try:
+			pid
+		except NameError:
+			print "error: System exit error.\n"
+			logger.info('error: %s', 'System exit error.', extra=d)
+
+		else:
+			os.kill(pid, signal.SIGUSR1)
+			print "Stop casting.\n"
+			logger.info('normal: %s', 'Stop casting.', extra=d)
 
 	#help
 	elif user_input == "help":
-		print "sorry. under construction.\n"
+		print "Sorry. Under construction.\n"
+		logger.info('normal: %s', 'Sorry. Under construction.', extra=d)
 
 	#自プログラム終了
 	elif user_input == "exit":
 		try:
 			pid
 		except NameError:
-			print "error: system exit error.\n"
+			print "error: System exit error.\n"
+			logger.info('error: %s', 'System exit error.', extra=d)
+
 		else:
 			sock.sendto("stop", (MCAST_ADDR,MCAST_PORT) )
 			os.kill(pid, signal.SIGUSR1)
-			print "exit this system. thanks! ;)"
+			print "Exit this system. thanks! ;)"
+			logger.info('normal: %s', 'Exit this system.', extra=d)
 			sock.close()
 			break
 	else :
 		print "command not found.\n"
+		logger.info('warning: %s', 'command not found.', extra=d)
